@@ -329,8 +329,8 @@ class MySQL extends AQueryWriter implements QueryWriter
 			$this->adapter->exec( "
 				ALTER TABLE {$table}
 				ADD CONSTRAINT $cName
-				FOREIGN KEY $fkName ( {$fieldNoQ} ) REFERENCES {$targetTableNoQ}
-				({$targetFieldNoQ}) ON DELETE " . ( $isDependent ? 'CASCADE' : 'SET NULL' ) . ' ON UPDATE '.( $isDependent ? 'CASCADE' : 'SET NULL' ).';');
+				FOREIGN KEY $fkName ( `{$fieldNoQ}` ) REFERENCES `{$targetTableNoQ}`
+				(`{$targetFieldNoQ}`) ON DELETE " . ( $isDependent ? 'CASCADE' : 'SET NULL' ) . ' ON UPDATE '.( $isDependent ? 'CASCADE' : 'SET NULL' ).';');
 		} catch ( SQLException $e ) {
 			// Failure of fk-constraints is not a problem
 		}
