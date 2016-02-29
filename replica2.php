@@ -68,6 +68,7 @@ if ($mode !== 'onlyphar') {
 	addFile( DIR . 'QueryWriter/MySQL.php' );
 	addFile( DIR . 'QueryWriter/SQLiteT.php' );
 	addFile( DIR . 'QueryWriter/PostgreSQL.php' );
+	addFile( DIR . 'QueryWriter/SqlServer.php' );
 	addFile( DIR . 'RedException.php' );
 	addFile( DIR . 'RedException/SQL.php' );
 	addFile( DIR . 'Repository.php' );
