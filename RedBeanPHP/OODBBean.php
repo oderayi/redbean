@@ -571,6 +571,8 @@ class OODBBean implements\IteratorAggregate,\ArrayAccess,\Countable,Jsonable
 			$arr[$key] = $value;
 		}
 
+		$arr['_type'] = $this->__info['type'];
+
 		if ( $meta ) {
 			$arr['__info'] = $this->__info;
 		}
