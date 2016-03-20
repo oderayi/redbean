@@ -144,7 +144,7 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	 */
 	public function getTables()
 	{
-		return $this->adapter->getCol( 'show tables' );
+		return $this->adapter->getCol( 'SELECT * FROM sys.Tables' );
 	}
 
 	/**
