@@ -11,10 +11,10 @@ use RedBeanPHP\RedException\SQL as SQLException;
 /**
  * RedBeanPHP SqlServerWriter.
  * This is a QueryWriter class for RedBeanPHP.
- * This QueryWriter provides support for the SqlServer/MariaDB database platform.
+ * This QueryWriter provides support for the SqlServer database platform.
  *
  * @file    RedBeanPHP/QueryWriter/SqlServer.php
- * @author  Gabor de Mooij and the RedBeanPHP Community
+ * @author  Diego Vieira, Gabor de Mooij and the RedBeanPHP Community
  * @license BSD/GPLv2
  *
  * @copyright
@@ -28,11 +28,11 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	 * Data types
 	 */
 	const C_DATATYPE_BOOL             = 0;
-	const C_DATATYPE_UINT32           = 2;
-	const C_DATATYPE_DOUBLE           = 3;
-	const C_DATATYPE_TEXT7            = 4; //InnoDB cant index varchar(255) utf8mb4 - so keep 191 as long as possible
-	const C_DATATYPE_TEXT8            = 5;
-	const C_DATATYPE_TEXT16           = 6;
+	const C_DATATYPE_INT32            = 2;
+	const C_DATATYPE_INT64            = 3;
+	const C_DATATYPE_DOUBLE           = 4;
+	const C_DATATYPE_TEXT7            = 5;
+	const C_DATATYPE_TEXT8            = 6;
 	const C_DATATYPE_TEXT32           = 7;
 	const C_DATATYPE_SPECIAL_DATE     = 80;
 	const C_DATATYPE_SPECIAL_DATETIME = 81;
@@ -51,34 +51,25 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	/**
 	 * @var string
 	 */
-	protected $quoteCharacter = '`';
+	protected $quoteCharacter = '';
 
 	/**
 	 * @see AQueryWriter::getKeyMapForType
 	 */
 	protected function getKeyMapForType( $type )
 	{
-		$databaseName = $this->adapter->getCell('SELECT DATABASE()');
 		$table = $this->esc( $type, TRUE );
-		$keys = $this->adapter->get('
-			SELECT
-				information_schema.key_column_usage.constraint_name AS `name`,
-				information_schema.key_column_usage.referenced_table_name AS `table`,
-				information_schema.key_column_usage.column_name AS `from`,
-				information_schema.key_column_usage.referenced_column_name AS `to`,
-				information_schema.referential_constraints.update_rule AS `on_update`,
-				information_schema.referential_constraints.delete_rule AS `on_delete`
-				FROM information_schema.key_column_usage
-				INNER JOIN information_schema.referential_constraints
-				ON information_schema.referential_constraints.constraint_name = information_schema.key_column_usage.constraint_name
-			WHERE
-				information_schema.key_column_usage.table_schema = :database
-				AND information_schema.referential_constraints.constraint_schema  = :database
-				AND information_schema.key_column_usage.constraint_schema  = :database
-				AND information_schema.key_column_usage.table_name = :table
-				AND information_schema.key_column_usage.constraint_name != \'PRIMARY\'
-				AND information_schema.key_column_usage.referenced_table_name IS NOT NULL
-		', array( ':database' => $databaseName, ':table' => $table ) );
+		$keys = $this->adapter->get("
+		SELECT RC.CONSTRAINT_NAME 'name',
+KF.TABLE_NAME 'table',
+KF.COLUMN_NAME 'from',
+KP.COLUMN_NAME 'to',
+RC.UPDATE_RULE on_update,
+RC.DELETE_RULE on_delete
+FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
+JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KF ON RC.CONSTRAINT_NAME = KF.CONSTRAINT_NAME
+JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KP ON RC.UNIQUE_CONSTRAINT_NAME = KP.CONSTRAINT_NAME
+WHERE KF.TABLE_NAME = :table", array( ':table' => $table ) );
 		$keyInfoList = array();
 		foreach ( $keys as $k ) {
 			$label = $this->makeFKLabel( $k['from'], $k['table'], $k['to'] );
@@ -95,6 +86,52 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	}
 
 	/**
+	 * Inserts a record into the database using a series of insert columns
+	 * and corresponding insertvalues. Returns the insert id.
+	 *
+	 * @param string $table         table to perform query on
+	 * @param array  $insertcolumns columns to be inserted
+	 * @param array  $insertvalues  values to be inserted
+	 *
+	 * @return integer
+	 */
+	public function insertRecord( $type, $insertcolumns, $insertvalues )
+	{
+		$default = $this->defaultValue;
+		$table   = $this->esc( $type );
+
+		if ( count( $insertvalues ) > 0 && is_array( $insertvalues[0] ) && count( $insertvalues[0] ) > 0 ) {
+
+			$insertSlots = array();
+			foreach ( $insertcolumns as $k => $v ) {
+				$insertcolumns[$k] = $this->esc( $v );
+
+				if (isset(self::$sqlFilters['w'][$type][$v])) {
+					$insertSlots[] = self::$sqlFilters['w'][$type][$v];
+				} else {
+					$insertSlots[] = '?';
+				}
+			}
+
+			$insertSQL = "INSERT INTO $table ( " . implode( ',', $insertcolumns ) . " ) VALUES
+			( " . implode( ',', $insertSlots ) . " ) ";
+
+			$ids = array();
+			foreach ( $insertvalues as $i => $insertvalue ) {
+				$ids[] = $this->adapter->getCell( $insertSQL, $insertvalue, $i );
+			}
+
+			$result = count( $ids ) === 1 ? array_pop( $ids ) : $ids;
+		} else {
+			$result = $this->adapter->getCell( "INSERT INTO $table DEFAULT VALUES" );
+		}
+
+		$last_id = $this->adapter->getInsertID();
+
+		return $last_id;
+	}
+
+	/**
 	 * Constructor
 	 *
 	 * @param Adapter $adapter Database Adapter
@@ -102,19 +139,19 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	public function __construct( Adapter $adapter )
 	{
 		$this->typeno_sqltype = array(
-			SqlServer::C_DATATYPE_BOOL             => ' TINYINT(1) UNSIGNED ',
-			SqlServer::C_DATATYPE_UINT32           => ' INT(11) UNSIGNED ',
-			SqlServer::C_DATATYPE_DOUBLE           => ' DOUBLE ',
-			SqlServer::C_DATATYPE_TEXT7            => ' VARCHAR(191) ',
-			SqlServer::C_DATATYPE_TEXT8	           => ' VARCHAR(255) ',
-			SqlServer::C_DATATYPE_TEXT16           => ' TEXT ',
-			SqlServer::C_DATATYPE_TEXT32           => ' LONGTEXT ',
+			SqlServer::C_DATATYPE_BOOL             => ' BIT ',
+			SqlServer::C_DATATYPE_INT32            => ' INT ',
+			SqlServer::C_DATATYPE_INT64            => ' BIGINT ',
+			SqlServer::C_DATATYPE_DOUBLE           => ' FLOAT ',
+			SqlServer::C_DATATYPE_TEXT7            => ' NVARCHAR(191) ',
+			SqlServer::C_DATATYPE_TEXT8	           => ' NVARCHAR(255) ',
+			SqlServer::C_DATATYPE_TEXT32           => ' NTEXT ',
 			SqlServer::C_DATATYPE_SPECIAL_DATE     => ' DATE ',
 			SqlServer::C_DATATYPE_SPECIAL_DATETIME => ' DATETIME ',
 			SqlServer::C_DATATYPE_SPECIAL_POINT    => ' POINT ',
 			SqlServer::C_DATATYPE_SPECIAL_LINESTRING => ' LINESTRING ',
 			SqlServer::C_DATATYPE_SPECIAL_POLYGON => ' POLYGON ',
-			SqlServer::C_DATATYPE_SPECIAL_MONEY    => ' DECIMAL(10,2) '
+			SqlServer::C_DATATYPE_SPECIAL_MONEY    => ' MONEY '
 		);
 
 		$this->sqltype_typeno = array();
@@ -124,8 +161,6 @@ class SqlServer extends AQueryWriter implements QueryWriter
 		}
 
 		$this->adapter = $adapter;
-
-		$this->encoding = $this->adapter->getDatabase()->getSqlServerEncoding();
 	}
 
 	/**
@@ -136,7 +171,7 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	 */
 	public function getTypeForID()
 	{
-		return self::C_DATATYPE_UINT32;
+		return self::C_DATATYPE_INT32;
 	}
 
 	/**
@@ -154,10 +189,17 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	{
 		$table = $this->esc( $table );
 
-		//$encoding = $this->adapter->getDatabase()->getSqlserverEncoding();
 		$sql   = "CREATE TABLE [$table] ([id] [int] IDENTITY(1,1) NOT NULL, CONSTRAINT [PK_$table] PRIMARY KEY ( [id] ))";
 
 		$this->adapter->exec( $sql );
+	}
+
+	/**
+	 * @see QueryWriter::glueLimitOne
+	 */
+	public function glueLimitOne( $sql = '')
+	{
+		return $sql;
 	}
 
 	/**
@@ -169,10 +211,7 @@ class SqlServer extends AQueryWriter implements QueryWriter
 
 		$columns = array();
 		foreach ( $columnsRaw as $r ) {
-			$columns[$r['COLUMN_NAME']] = array(
-					'TYPE' => $r['DATA_TYPE'],
-					'LENGTH' => $r['CHARACTER_MAXIMUM_LENGTH'],
-			);
+			$columns[$r['COLUMN_NAME']] = $r['DATA_TYPE'] . (is_numeric($r['CHARACTER_MAXIMUM_LENGTH']) ? '('.$r['CHARACTER_MAXIMUM_LENGTH'].')' : '');
 		}
 
 		return $columns;
@@ -184,19 +223,12 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	public function scanType( $value, $flagSpecial = FALSE )
 	{
 		$this->svalue = $value;
-
 		if ( is_null( $value ) ) return SqlServer::C_DATATYPE_BOOL;
 		if ( $value === INF ) return SqlServer::C_DATATYPE_TEXT7;
 
 		if ( $flagSpecial ) {
 			if ( preg_match( '/^-?\d+\.\d{2}$/', $value ) ) {
 				return SqlServer::C_DATATYPE_SPECIAL_MONEY;
-			}
-			if ( preg_match( '/^\d{4}\-\d\d-\d\d$/', $value ) ) {
-				return SqlServer::C_DATATYPE_SPECIAL_DATE;
-			}
-			if ( preg_match( '/^\d{4}\-\d\d-\d\d\s\d\d:\d\d:\d\d$/', $value ) ) {
-				return SqlServer::C_DATATYPE_SPECIAL_DATETIME;
 			}
 			if ( preg_match( '/^POINT\(/', $value ) ) {
 				return SqlServer::C_DATATYPE_SPECIAL_POINT;
@@ -209,6 +241,13 @@ class SqlServer extends AQueryWriter implements QueryWriter
 			}
 		}
 
+		if ( preg_match( '/^\d{4}\-\d\d-\d\d$/', $value ) ) {
+			return SqlServer::C_DATATYPE_SPECIAL_DATE;
+		}
+		if ( preg_match( '/^\d{4}\-\d\d-\d\d\s\d\d:\d\d:\d\d$/', $value ) ) {
+			return SqlServer::C_DATATYPE_SPECIAL_DATETIME;
+		}
+
 		//setter turns TRUE FALSE into 0 and 1 because database has no real bools (TRUE and FALSE only for test?).
 		if ( $value === FALSE || $value === TRUE || $value === '0' || $value === '1' ) {
 			return SqlServer::C_DATATYPE_BOOL;
@@ -218,8 +257,12 @@ class SqlServer extends AQueryWriter implements QueryWriter
 
 		if ( !$this->startsWithZeros( $value ) ) {
 
-			if ( is_numeric( $value ) && ( floor( $value ) == $value ) && $value >= 0 && $value <= 4294967295 ) {
-				return SqlServer::C_DATATYPE_UINT32;
+			if ( is_numeric( $value ) && ( floor( $value ) == $value ) && $value >= 0 && $value <= 2147483647 ) {
+				return SqlServer::C_DATATYPE_INT32;
+			}
+
+			if ( is_numeric( $value ) && ( floor( $value ) == $value ) && $value >= 0 && $value <= 9223372036854775807 ) {
+				return SqlServer::C_DATATYPE_INT64;
 			}
 
 			if ( is_numeric( $value ) ) {
@@ -235,17 +278,13 @@ class SqlServer extends AQueryWriter implements QueryWriter
 			return SqlServer::C_DATATYPE_TEXT8;
 		}
 
-		if ( mb_strlen( $value, 'UTF-8' ) <= 65535 ) {
-			return SqlServer::C_DATATYPE_TEXT16;
-		}
-
 		return SqlServer::C_DATATYPE_TEXT32;
 	}
 
 	/**
 	 * @see QueryWriter::code
 	 */
-	public function code( $typedescription, $includeSpecials = FALSE )
+	public function code( $typedescription, $includeSpecials = TRUE )
 	{
 		if ( isset( $this->sqltype_typeno[$typedescription] ) ) {
 			$r = $this->sqltype_typeno[$typedescription];
@@ -330,8 +369,8 @@ class SqlServer extends AQueryWriter implements QueryWriter
 		$cName = 'c_'.$fkName;
 		try {
 			$this->adapter->exec( "ALTER TABLE [{$table}]
-				ADD CONSTRAINT [$cName] FOREIGN KEY ( [$fkName] ) REFERENCES [{$targetTableNoQ}] (
-				[{$targetFieldNoQ}]) ON DELETE " . ( $isDependent ? 'CASCADE' : 'SET NULL' ) . ' ON UPDATE SET NULL ;' );
+				ADD CONSTRAINT [$fkName] FOREIGN KEY ( [$fieldNoQ] ) REFERENCES [{$targetTableNoQ}] (
+				[{$targetFieldNoQ}]) ON DELETE " . ( $isDependent ? 'CASCADE' : 'NO ACTION' ) . ' ON UPDATE NO ACTION ;' );
 		} catch ( SQLException $e ) {
 			// Failure of fk-constraints is not a problem
 		}
@@ -353,13 +392,53 @@ class SqlServer extends AQueryWriter implements QueryWriter
 	}
 
 	/**
+	 * @see QueryWriter::widenColumn
+	 */
+	public function widenColumn( $type, $property, $dataType )
+	{
+		if ( !isset($this->typeno_sqltype[$dataType]) ) return FALSE;
+
+		$table   = $this->esc( $type );
+		$column  = $this->esc( $property );
+
+		$newType = $this->typeno_sqltype[$dataType];
+
+		$this->adapter->exec( "ALTER TABLE $table ALTER COLUMN $column $newType " );
+
+		return TRUE;
+	}
+
+	/**
+	 * @see QueryWriter::wipe
+	 */
+	public function wipe( $type )
+	{
+		$table = $this->esc( $type );
+
+		$this->adapter->exec( "TRUNCATE TABLE $table " );
+	}
+
+	/**
 	 * @see QueryWriter::wipeAll
 	 */
 	public function wipeAll()
 	{
 		foreach ( $this->getTables() as $t ) {
 			try {
-				$this->adapter->exec( "EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT all'; IF OBJECT_ID('[$t]', 'U') IS NOT NULL DROP TABLE [$t]; EXEC sp_msforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT all';" );
+
+				$foreignKeys = $this->adapter->getAssoc( "SELECT
+				    'ALTER TABLE ' +  OBJECT_SCHEMA_NAME(parent_object_id) +
+				    '.[' + OBJECT_NAME(parent_object_id) +
+				    '] DROP CONSTRAINT ' + name
+				FROM sys.foreign_keys
+				WHERE referenced_object_id = object_id('$t')" );
+				if (count($foreignKeys)) {
+					foreach ($foreignKeys as $sql) {
+						$this->adapter->exec( $sql );
+					}
+				}
+
+				$this->adapter->exec( "IF OBJECT_ID('[$t]', 'U') IS NOT NULL DROP TABLE [$t];" );
 			} catch ( SQLException $e ) {
 			}
 		}

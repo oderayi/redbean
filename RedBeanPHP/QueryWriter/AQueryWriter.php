@@ -29,7 +29,7 @@ abstract class AQueryWriter
 	/**
 	 * @var array
 	 */
-	private static $sqlFilters = array();
+	public static $sqlFilters = array();
 
 	/**
 	 * @var boolean
