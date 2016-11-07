@@ -42,7 +42,7 @@ class Facade extends Base
 	 */
 	public function getTargetDrivers()
 	{
-		return array( 'mysql', 'pgsql', 'sqlite', 'CUBRID' );
+		return array( 'mysql', 'pgsql', 'sqlite', 'CUBRID', 'sqlsrv' );
 	}
 
 	/**

@@ -37,7 +37,7 @@ class Database extends Base
 	 */
 	public function getTargetDrivers()
 	{
-		return array( 'mysql', 'pgsql', 'sqlite', 'CUBRID' );
+		return array( 'mysql', 'pgsql', 'sqlite', 'CUBRID', 'sqlsrv' );
 	}
 
 	/**
@@ -392,4 +392,3 @@ class TroubleDapter extends DBAdapter
 		$this->get( $sql, $aValues );
 	}
 }
-

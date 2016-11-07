@@ -396,6 +396,9 @@ function getIndexes( $tableNoQ )
 	if ( ( $writer instanceof \RedBeanPHP\QueryWriter\PostgreSQL ) ) {
 		return R::getCol( " SELECT indexname FROM pg_indexes WHERE tablename = '{$tableNoQ}' AND schemaname = 'public' " );
 	}
+	if ( ( $writer instanceof \RedBeanPHP\QueryWriter\SqlServer ) ) {
+		return R::getCol( " select name from sys.indexes " );
+	}
 
 	return array();
 }

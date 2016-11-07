@@ -39,6 +39,7 @@ require_once( 'RedUNIT/Blackhole.php' );
 require_once( 'RedUNIT/Mysql.php' );
 require_once( 'RedUNIT/Postgres.php' );
 require_once( 'RedUNIT/Sqlite.php' );
+require_once( 'RedUNIT/Sqlserver.php' );
 
 require_once( 'RedUNIT/Pretest.php' );
 
@@ -49,6 +50,7 @@ $colorMap = array(
 		 'mysql'  => '0;31',
 		 'pgsql'  => '0;32',
 		 'sqlite' => '0;34',
+		 'sqlsrv' => '0;34',
 );
 
 @include 'cli/test_hook.php';
@@ -64,6 +66,14 @@ if ( isset( $ini['mysql'] ) ) {
 	R::exec( ' SET GLOBAL sql_mode="" ' );
 }
 
+if ( isset( $ini['sqlsrv'] ) ) {
+	$dsn = "sqlsrv:Server={$ini['sqlsrv']['host']};Database={$ini['sqlsrv']['schema']}";
+
+	R::addDatabase( 'sqlsrv', $dsn, $ini['sqlsrv']['user'], $ini['sqlsrv']['pass'], FALSE );
+
+	R::selectDatabase( 'sqlsrv' );
+}
+
 //HHVM on Travis does not yet support PostgreSQL.
 if ( defined( 'HHVM_VERSION' ) ) {
 	unset( $ini['pgsql'] );
@@ -76,9 +86,9 @@ if ( defined( 'HHVM_VERSION' ) ) {
 
 if ( isset( $ini['sqlite'] ) ) {
 	R::addDatabase( 'sqlite', 'sqlite:' . $ini['sqlite']['file'], NULL, NULL, FALSE );
-}
 
-R::selectDatabase( 'sqlite' );
+	R::selectDatabase( 'sqlite' );
+}
 
 // Function to activate a driver
 function activate_driver( $d )
@@ -107,7 +117,7 @@ $path = 'RedUNIT/';
 
 // Possible Selections
 $packList = array();
-
+echo "LINE: " .__LINE__."\n";
 $allPacks = array(
 	'Blackhole/Version',
 	'Blackhole/Toolbox',
@@ -185,6 +195,7 @@ $allPacks = array(
 	'Sqlite/Parambind',
 	'Sqlite/Writer',
 	'Sqlite/Rebuild',
+	'Sqlserver/Issue411',
 );
 
 $suffix = array(

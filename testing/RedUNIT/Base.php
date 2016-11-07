@@ -28,7 +28,7 @@ class Base extends RedUNIT
 	 *
 	 * @var array
 	 */
-	protected static $driverList = array( 'mysql', 'pgsql', 'sqlite', 'CUBRID' );
+	protected static $driverList = array( 'mysql', 'pgsql', 'sqlite', 'CUBRID', 'oracle', 'sqlsrv' );
 
 	/**
 	 * Adds a driver to the list.

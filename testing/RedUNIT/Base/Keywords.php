@@ -34,7 +34,7 @@ class Keywords extends Base
 	 */
 	public function getTargetDrivers()
 	{
-		return array( 'mysql', 'pgsql', 'sqlite' ); // CUBRID excluded for now.
+		return array( 'mysql', 'pgsql', 'sqlite', 'sqlsrv' ); // CUBRID excluded for now.
 	}
 
 	/**
