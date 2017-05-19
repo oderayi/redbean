@@ -410,6 +410,7 @@ class OODBBean implements\IteratorAggregate,\ArrayAccess,\Countable,Jsonable
 		$this->__info['sys.orig'] = array( 'id' => 0 );
 		$this->__info['tainted']  = TRUE;
 		$this->__info['changed']  = TRUE;
+		$this->__info['changelist'] = array();
 		$this->properties['id']   = 0;
 	}
 
@@ -548,7 +549,7 @@ class OODBBean implements\IteratorAggregate,\ArrayAccess,\Countable,Jsonable
 	{
 		$myID = $this->properties['id'];
 
-		$this->import( $otherBean->export() );
+		$this->import( $otherBean->export( FALSE, FALSE, TRUE ) );
 
 		$this->id = $myID;
 
@@ -626,6 +627,29 @@ class OODBBean implements\IteratorAggregate,\ArrayAccess,\Countable,Jsonable
 			$property = substr($property, 1);
 		}
 		return isset( $this->properties[$property] );
+	}
+
+	/**
+	 * Checks whether a related bean exists.
+	 * For instance if a post bean has a related author, this method
+	 * can be used to check if the author is set without loading the author.
+	 * This method works by checking the related ID-field.
+	 *
+	 * @param string $property name of the property you wish to check
+	 *
+	 * @return boolean
+	 */
+	public function exists( $property )
+	{
+		$property = $this->beau( $property );
+		/* fixes issue #549, see Base/Bean test */
+		$hiddenRelationField = "{$property}_id";
+		if ( array_key_exists( $hiddenRelationField, $this->properties ) ) {
+			if ( !is_null( $this->properties[$hiddenRelationField] ) ) {
+				return TRUE;
+			}
+		}
+		return FALSE;
 	}
 
 	/**
@@ -1096,6 +1120,7 @@ class OODBBean implements\IteratorAggregate,\ArrayAccess,\Countable,Jsonable
 
 		$this->__info['tainted'] = TRUE;
 		$this->__info['changed'] = TRUE;
+		array_push( $this->__info['changelist'], $property );
 
 		if ( array_key_exists( $fieldLink, $this->properties ) && !( $value instanceof OODBBean ) ) {
 			if ( is_null( $value ) || $value === FALSE ) {

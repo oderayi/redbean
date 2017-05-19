@@ -18,6 +18,7 @@ use RedBeanPHP\Util\Transaction as Transaction;
 use RedBeanPHP\Util\Dump as Dump;
 use RedBeanPHP\Util\DispenseHelper as DispenseHelper;
 use RedBeanPHP\Util\ArrayTool as ArrayTool;
+use RedBeanPHP\Util\QuickExport as QuickExport;
 
 /**
  * RedBean Facade
@@ -605,6 +606,7 @@ class Facade
 	 */
 	public static function findOrDispense( $type, $sql = NULL, $bindings = array() )
 	{
+		DispenseHelper::checkType( $type );
 		return self::$finder->findOrDispense( $type, $sql, $bindings );
 	}
 
@@ -619,7 +621,9 @@ class Facade
 	 */
 	public static function findOneOrDispense( $type, $sql = NULL, $bindings = array() )
 	{
-		return reset( self::findOrDispense( $type, $sql, $bindings ) );
+		DispenseHelper::checkType( $type );
+		$arrayOfBeans = self::findOrDispense( $type, $sql, $bindings );
+		return reset($arrayOfBeans);
 	}
 
 	/**
@@ -1871,6 +1875,42 @@ class Facade
 	public static function setAutoResolve( $automatic = TRUE )
 	{
 		OODBBean::setAutoResolve( (boolean) $automatic );
+	}
+
+	/**
+	 * Toggles 'partial bean mode'. If this mode has been
+	 * selected the repository will only update the fields of a bean that
+	 * have been changed rather than the entire bean.
+	 * Pass the value TRUE to select 'partial mode' for all beans.
+	 * Pass the value FALSE to disable 'partial mode'.
+	 * Pass an array of bean types if you wish to use partial mode only
+	 * for some types.
+	 * This method will return the previous value.
+	 *
+	 * @param boolean|array $list List of type names or 'all'
+	 *
+	 * @return mixed
+	 */
+	public static function usePartialBeans( $yesNoBeans )
+	{
+		return self::$redbean->getCurrentRepository()->usePartialBeans( $yesNoBeans );
+	}
+
+	/**
+	 * Exposes the result of the specified SQL query as a CSV file.
+	 *
+	 * @param string  $sql      SQL query to expose result of
+	 * @param array   $bindings parameter bindings
+	 * @param array   $columns  column headers for CSV file
+	 * @param string  $path     path to save CSV file to
+	 * @param boolean $output   TRUE to output CSV directly using readfile
+	 *
+	 * @return void
+	 */
+	public static function csv( $sql = '', $bindings = array(), $columns = NULL, $path = '/tmp/redexport_%s.csv', $output = true )
+	{
+		$quickExport = new QuickExport( self::$toolbox );
+		$quickExport->csv( $sql, $bindings, $columns, $path, $output );
 	}
 
 	/**
