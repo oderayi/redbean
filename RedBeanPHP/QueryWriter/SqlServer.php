@@ -187,8 +187,6 @@ class SqlServer extends AQueryWriter implements QueryWriter
      */
     public function createTable($table)
     {
-        $table = $this->esc($table);
-
         $sql = "CREATE TABLE [$table] ([id] [int] IDENTITY(1,1) NOT NULL, CONSTRAINT [PK_$table] PRIMARY KEY ( [id] ))";
 
         $this->adapter->exec($sql);
